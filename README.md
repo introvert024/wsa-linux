@@ -63,19 +63,29 @@ Prebuilt releases and installers are published on GitHub:
 
 | Package | Target OS | Direct Download Link | Installation Command |
 | :--- | :--- | :--- | :--- |
-| **Debian / Ubuntu Package** | Ubuntu 20.04 - 24.10, Debian | [Download `.deb`](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux_2210.40000.7.0_amd64.deb) | `sudo apt-get install -y ./wsa-linux_2210.40000.7.0_amd64.deb` |
-| **Fedora Package Bundle** | Fedora 38, 39, 40, 41, Rawhide | [Download Fedora Bundle](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-fedora.tar.gz) | `tar -xzf wsa-linux-*-fedora.tar.gz && sudo ./installer/install.sh` |
+| **Fedora RPM Package (`.rpm`)** | Fedora 38, 39, 40, 41, Rawhide | [**Download `.rpm`**](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-1.x86_64.rpm) | `sudo dnf install -y ./wsa-linux-2210.40000.7.0-1.x86_64.rpm` |
+| **Debian / Ubuntu Package (`.deb`)** | Ubuntu 20.04 - 24.10, Debian | [**Download `.deb`**](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux_2210.40000.7.0_amd64.deb) | `sudo apt-get install -y ./wsa-linux_2210.40000.7.0_amd64.deb` |
+| **Fedora Package Bundle** | Fedora (Manual Build) | [Download Bundle](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-fedora.tar.gz) | `tar -xzf wsa-linux-*-fedora.tar.gz && sudo ./installer/install.sh` |
 | **Universal Installer** | All Linux Distributions | [Download Universal Archive](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-universal.tar.gz) | `tar -xzf wsa-linux-*-universal.tar.gz && sudo ./installer/install.sh` |
+
+---
+
+## ⚡ One-Line Automatic Install (Fedora & Ubuntu)
+
+To automatically detect your OS, download the correct package, and install:
+```bash
+curl -fsSL https://raw.githubusercontent.com/introvert024/wsa-linux/main/install-online.sh | bash
+```
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### 1. Direct Install on Fedora
+### 1. Direct Install on Fedora (.rpm)
 ```bash
-wget https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-fedora.tar.gz
-tar -xzf wsa-linux-2210.40000.7.0-fedora.tar.gz
-sudo ./installer/install.sh
+# Download and install the native RPM package
+wget https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-1.x86_64.rpm
+sudo dnf install -y ./wsa-linux-2210.40000.7.0-1.x86_64.rpm
 ```
 *(Or build native RPM package: `rpmbuild -ba packaging/fedora/wsa-linux.spec`)*
 
