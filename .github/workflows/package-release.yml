@@ -2,6 +2,9 @@ name: Build and Publish Linux Packages (.deb & .rpm)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   release:
     types: [published, created]
 
