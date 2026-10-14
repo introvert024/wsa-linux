@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=WSA URI Scheme Handler
+Comment=Handles wsa:// URLs to launch Android apps
+Exec=wsa-app %u
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/wsa;

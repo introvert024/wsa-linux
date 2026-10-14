@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#=============================================================================
+# wsa-sync-apps: Synchronize Android apps to Linux desktop application menus
+# Creates ~/.local/share/applications/wsa-<pkg>.desktop files
+#=============================================================================
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/wsa-linux/wsa-linux.conf"
+APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/128x128/apps"
+
+mkdir -p "$APP_DIR" "$ICON_DIR"
+
+ADB_PORT=5555
+if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+    ADB_PORT="${WSA_ADB_PORT:-5555}"
+fi
+
+ADB_CMD="adb -s 127.0.0.1:$ADB_PORT"
+
+adb connect "127.0.0.1:$ADB_PORT" >/dev/null 2>&1 || true
+
+boot_completed=$($ADB_CMD shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || echo "0")
+if [[ "$boot_completed" != "1" ]]; then
+    echo "[!] WSA Android is not booted. Please start it with 'wsa-client start' before syncing apps."
+    exit 1
+fi
+
+echo "[*] Discovering Android applications with launcher activities..."
+
+# Query packages with launcher activities
+PACKAGES=$($ADB_CMD shell 'cmd package query-activities -c android.intent.category.LAUNCHER' 2>/dev/null | grep -E 'activity.*filter' -B 1 | grep 'name=' | sed -n 's/.*name=\([^ ]*\).*/\1/p' | cut -d/ -f1 | sort -u || true)
+
+if [[ -z "$PACKAGES" ]]; then
+    # Fallback method using pm list packages
+    PACKAGES=$($ADB_CMD shell pm list packages -3 2>/dev/null | sed 's/package://' || true)
+fi
+
+# Always include Play Store and Magisk if installed
+EXTRA_PACKAGES=("com.android.vending" "com.topjohnwu.magisk" "com.android.settings")
+
+for extra in "${EXTRA_PACKAGES[@]}"; do
+    if $ADB_CMD shell pm list packages | grep -q "$extra"; then
+        PACKAGES+=$'\n'"$extra"
+    fi
+done
+
+PACKAGES=$(echo "$PACKAGES" | sort -u | grep -v '^$')
+
+KNOWN_LABELS=(
+    ["com.android.vending"]="Google Play Store"
+    ["com.topjohnwu.magisk"]="Magisk Manager"
+    ["com.android.settings"]="Android Settings"
+    ["com.google.android.gms"]="Google Play Services"
+    ["com.android.chrome"]="Google Chrome"
+)
+
+declare -A KNOWN_CATEGORIES=(
+    ["com.android.vending"]="System;Utility;"
+    ["com.topjohnwu.magisk"]="System;Settings;"
+    ["com.android.settings"]="Settings;"
+)
+
+echo "[*] Generating desktop entries in $APP_DIR..."
+
+count=0
+while IFS= read -r pkg; do
+    [[ -z "$pkg" ]] && continue
+
+    # Resolve label
+    label="${KNOWN_LABELS[$pkg]}"
+    if [[ -z "$label" ]]; then
+        # Try to resolve app label from Android package manager
+        label=$($ADB_CMD shell dumpsys package "$pkg" 2>/dev/null | grep -A 1 "ApplicationInfo" | grep -m 1 "label=" | sed -n 's/.*label=\([^ ]*\).*/\1/p' || true)
+        if [[ -z "$label" ]]; then
+            # Clean up package name as fallback label
+            label=$(echo "$pkg" | awk -F. '{print $NF}' | sed 's/\b\(.\)/\u\1/g')
+        fi
+    fi
+
+    categories="${KNOWN_CATEGORIES[$pkg]:-Utility;Application;}"
+    desktop_file="$APP_DIR/wsa-$pkg.desktop"
+
+    cat <<EOF > "$desktop_file"
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=$label (WSA)
+GenericName=Android App
+Comment=Launch $label on WSA Linux Subsystem
+Exec=$SCRIPT_DIR/wsa-app $pkg
+Icon=android
+Terminal=false
+Categories=$categories
+StartupNotify=true
+MimeType=x-scheme-handler/wsa;
+X-WSA-Package=$pkg
+EOF
+
+    chmod +x "$desktop_file"
+    ((count++))
+    echo "  [+] Registered: $label ($pkg)"
+done <<< "$PACKAGES"
+
+# Update system desktop database
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
+fi
+
+echo "[+] Successfully synchronized $count Android applications to your Linux desktop!"

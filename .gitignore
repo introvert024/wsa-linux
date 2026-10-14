@@ -1,0 +1,19 @@
+# Ignore build outputs, temporary directories, and downloaded large images
+output/
+download/
+python3-env/
+mount_temp/
+*.log
+*.pid
+*.vhdx
+*.img
+*.7z
+*.zip
+*.tar.gz
+!debian/
+!linux-wsa/
+.ms_account
+__pycache__/
+*.pyc
+.cache/
+wsa_convert_tmp/

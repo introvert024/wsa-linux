@@ -1,0 +1,38 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_build:
+	# No build necessary for precompiled images and scripts
+
+override_dh_auto_install:
+	mkdir -p debian/wsa-linux/opt/wsa-linux/bin
+	mkdir -p debian/wsa-linux/usr/bin
+	mkdir -p debian/wsa-linux/usr/share/applications
+	mkdir -p debian/wsa-linux/usr/lib/systemd/user
+	mkdir -p debian/wsa-linux/lib/udev/rules.d
+
+	install -m 0755 bin/wsa-runner.sh debian/wsa-linux/opt/wsa-linux/bin/wsa-runner
+	install -m 0755 bin/wsa-client debian/wsa-linux/opt/wsa-linux/bin/wsa-client
+	install -m 0755 bin/wsa-app debian/wsa-linux/opt/wsa-linux/bin/wsa-app
+	install -m 0755 bin/wsa-sync-apps debian/wsa-linux/opt/wsa-linux/bin/wsa-sync-apps
+	install -m 0755 bin/wsa-settings debian/wsa-linux/opt/wsa-linux/bin/wsa-settings
+	install -m 0755 bin/wsa-uninstaller debian/wsa-linux/opt/wsa-linux/bin/wsa-uninstaller
+
+	ln -sf /opt/wsa-linux/bin/wsa-runner debian/wsa-linux/usr/bin/wsa-runner
+	ln -sf /opt/wsa-linux/bin/wsa-client debian/wsa-linux/usr/bin/wsa-client
+	ln -sf /opt/wsa-linux/bin/wsa-app debian/wsa-linux/usr/bin/wsa-app
+	ln -sf /opt/wsa-linux/bin/wsa-sync-apps debian/wsa-linux/usr/bin/wsa-sync-apps
+	ln -sf /opt/wsa-linux/bin/wsa-settings debian/wsa-linux/usr/bin/wsa-settings
+	ln -sf /opt/wsa-linux/bin/wsa-uninstaller debian/wsa-linux/usr/bin/wsa-uninstaller
+
+	install -m 0644 desktop/wsa-settings.desktop debian/wsa-linux/usr/share/applications/wsa-settings.desktop
+	install -m 0644 desktop/wsa-uri-handler.desktop debian/wsa-linux/usr/share/applications/wsa-uri-handler.desktop
+	install -m 0644 systemd/wsa-linux.service debian/wsa-linux/usr/lib/systemd/user/wsa-linux.service
+
+	echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > debian/wsa-linux/lib/udev/rules.d/65-wsa-kvm.rules
+
+	if [ -d images ]; then \
+		mkdir -p debian/wsa-linux/opt/wsa-linux/images; \
+		cp -r images/* debian/wsa-linux/opt/wsa-linux/images/; \
+	fi

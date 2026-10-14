@@ -1,0 +1,15 @@
+Source: wsa-linux
+Section: utils
+Priority: optional
+Maintainer: WSABuilds Linux Port Team <support@wsabuilds.local>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/MustardChef/WSABuilds
+
+Package: wsa-linux
+Architecture: amd64
+Depends: ${misc:Depends}, qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils
+Description: Windows Subsystem for Android (WSA) on Ubuntu Linux
+ Port of Windows Subsystem for Android (WSA) to Ubuntu.
+ Features Android 12.1 (API 32) images with Google Play Store (MindTheGapps),
+ Magisk root solution, seamless desktop integration, and 3D acceleration.

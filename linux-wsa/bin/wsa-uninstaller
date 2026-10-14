@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+#=============================================================================
+# wsa-uninstaller: Clean Uninstaller for WSA Linux Subsystem
+# Supports Fedora (dnf) and Ubuntu/Debian (apt)
+#=============================================================================
+
+set -e
+
+echo "=========================================================="
+echo " WSA Linux Subsystem Uninstaller"
+echo "=========================================================="
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/wsa-linux"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/wsa-linux"
+APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+
+# Stop running instance
+echo "[*] Stopping any active WSA instances..."
+if command -v wsa-client >/dev/null 2>&1; then
+    wsa-client stop || true
+fi
+systemctl --user stop wsa-linux.service 2>/dev/null || true
+systemctl --user disable wsa-linux.service 2>/dev/null || true
+
+# Remove desktop application entries
+echo "[*] Removing Android desktop application entries..."
+rm -f "$APP_DIR"/wsa-*.desktop "$APP_DIR"/wsa-linux-*.desktop
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
+fi
+
+# Remove systemd user service
+if [[ -f "$SYSTEMD_USER_DIR/wsa-linux.service" ]]; then
+    rm -f "$SYSTEMD_USER_DIR/wsa-linux.service"
+    systemctl --user daemon-reload 2>/dev/null || true
+fi
+
+# Ask about user data
+KEEP_DATA="yes"
+if [[ -t 0 ]]; then
+    read -r -p "Do you want to delete persistent Android user data (userdata.img)? [y/N]: " response
+    case "$response" in
+        [yY][eE][sS]|[yY])
+            KEEP_DATA="no"
+            ;;
+        *)
+            KEEP_DATA="yes"
+            ;;
+    esac
+fi
+
+if [[ "$KEEP_DATA" == "no" ]]; then
+    echo "[*] Purging userdata and cache..."
+    rm -rf "$DATA_DIR"
+    rm -rf "$CONFIG_DIR"
+else
+    echo "[*] Preserving user data in $DATA_DIR for future use."
+fi
+
+# If installed system-wide in /opt/wsa-linux or /usr/local/bin
+if [[ -d "/opt/wsa-linux" ]] || [[ -f "/usr/local/bin/wsa-client" ]]; then
+    echo "[*] System-wide files detected. Superuser privileges may be needed."
+    if [[ $EUID -ne 0 ]]; then
+        sudo rm -f /usr/local/bin/wsa-client /usr/local/bin/wsa-app /usr/local/bin/wsa-runner /usr/local/bin/wsa-settings /usr/local/bin/wsa-sync-apps
+        sudo rm -rf /opt/wsa-linux
+        sudo rm -f /etc/udev/rules.d/65-wsa-kvm.rules
+        sudo udevadm control --reload-rules 2>/dev/null || true
+    else
+        rm -f /usr/local/bin/wsa-client /usr/local/bin/wsa-app /usr/local/bin/wsa-runner /usr/local/bin/wsa-settings /usr/local/bin/wsa-sync-apps
+        rm -rf /opt/wsa-linux
+        rm -f /etc/udev/rules.d/65-wsa-kvm.rules
+        udevadm control --reload-rules 2>/dev/null || true
+    fi
+fi
+
+echo "[+] WSA Linux Subsystem has been successfully uninstalled!"

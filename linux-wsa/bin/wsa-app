@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+#=============================================================================
+# wsa-app: Desktop Application & URI Launcher for Android apps on Linux
+# Handles:
+#  - Direct launch: wsa-app <package-name>
+#  - URI scheme: wsa://<package-name>
+#  - Seamless auto-boot if subsystem is stopped
+#=============================================================================
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wsa-linux"
+PID_FILE="$RUNTIME_DIR/wsa.pid"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/wsa-linux/wsa-linux.conf"
+
+ADB_PORT=5555
+SEAMLESS_WINDOW="auto"
+if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+    ADB_PORT="${WSA_ADB_PORT:-5555}"
+    SEAMLESS_WINDOW="${WSA_SEAMLESS:-auto}"
+fi
+
+ADB_CMD="adb -s 127.0.0.1:$ADB_PORT"
+
+RAW_TARGET="$1"
+if [[ -z "$RAW_TARGET" ]]; then
+    echo "Usage: wsa-app <package_name | wsa://package_name>"
+    exit 1
+fi
+
+# Clean URI scheme if present (e.g., wsa://com.android.vending -> com.android.vending)
+PKG="${RAW_TARGET#wsa://}"
+PKG="${PKG%/}"
+
+ensure_adb_connected() {
+    adb connect "127.0.0.1:$ADB_PORT" >/dev/null 2>&1 || true
+}
+
+is_running() {
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Auto-start WSA if not running
+if ! is_running; then
+    echo "[*] WSA Linux is not running. Starting Android subsystem..."
+    # Notify desktop user if libnotify is available
+    command -v notify-send >/dev/null 2>&1 && notify-send "WSA Linux" "Starting Android subsystem for $PKG..." --icon=android
+    "$SCRIPT_DIR/wsa-client" start --daemon
+fi
+
+# Wait for boot completion
+echo -n "[*] Connecting to Android..."
+attempts=0
+while [[ $attempts -lt 40 ]]; do
+    ensure_adb_connected
+    boot=$($ADB_CMD shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || echo "0")
+    if [[ "$boot" == "1" ]]; then
+        break
+    fi
+    sleep 1
+    ((attempts++))
+done
+
+if [[ "$boot" != "1" ]]; then
+    echo " [!] Android subsystem did not respond in time."
+    command -v notify-send >/dev/null 2>&1 && notify-send "WSA Linux" "Failed to connect to Android subsystem" --urgency=critical
+    exit 1
+fi
+
+echo " Connected!"
+echo "[*] Launching Android package: $PKG..."
+
+# Launch the app via monkey (finds main launcher activity automatically)
+$ADB_CMD shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || {
+    # Fallback to standard intent start
+    $ADB_CMD shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$PKG" >/dev/null 2>&1 || {
+        $ADB_CMD shell am start "$PKG" >/dev/null 2>&1
+    }
+}
+
+# If seamless mode is requested and scrcpy is available, present seamless window
+if command -v scrcpy >/dev/null 2>&1 && [[ "$SEAMLESS_WINDOW" == "on" || "$SEAMLESS_WINDOW" == "auto" ]]; then
+    # Check if QEMU is running headless
+    if pgrep -f "qemu.*-display none" >/dev/null 2>&1; then
+        scrcpy -s "127.0.0.1:$ADB_PORT" --window-title="Android - $PKG" --stay-awake --power-off-on-close >/dev/null 2>&1 &
+    fi
+fi
+
+command -v notify-send >/dev/null 2>&1 && notify-send "WSA Linux" "Launched $PKG" --icon=android

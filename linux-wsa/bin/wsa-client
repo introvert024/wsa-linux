@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+#=============================================================================
+# wsa-client: Client CLI & Control Interface for WSA on Linux
+#=============================================================================
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wsa-linux"
+PID_FILE="$RUNTIME_DIR/wsa.pid"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/wsa-linux/wsa-linux.conf"
+
+ADB_PORT=5555
+if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+    ADB_PORT="${WSA_ADB_PORT:-5555}"
+fi
+
+ADB_CMD="adb -s 127.0.0.1:$ADB_PORT"
+
+ensure_adb_connected() {
+    adb connect "127.0.0.1:$ADB_PORT" >/dev/null 2>&1 || true
+}
+
+is_running() {
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+wait_for_boot() {
+    echo -n "[*] Waiting for Android system to boot..."
+    local attempts=0
+    local max_attempts=60
+    while [[ $attempts -lt $max_attempts ]]; do
+        ensure_adb_connected
+        local boot_status
+        boot_status=$($ADB_CMD shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+        if [[ "$boot_status" == "1" ]]; then
+            echo " Ready!"
+            return 0
+        fi
+        echo -n "."
+        sleep 2
+        ((attempts++))
+    done
+    echo " Timeout waiting for boot."
+    return 1
+}
+
+case "$1" in
+    start)
+        shift
+        if is_running; then
+            echo "[*] WSA Linux is already running (PID: $(cat "$PID_FILE"))."
+            exit 0
+        fi
+        echo "[*] Starting WSA Linux Subsystem..."
+        if [[ "$1" == "--daemon" || "$1" == "--headless" || "$1" == "-d" ]]; then
+            nohup "$SCRIPT_DIR/wsa-runner.sh" > "$RUNTIME_DIR/wsa.log" 2>&1 &
+            echo "[+] WSA launched in background (PID: $!)."
+            echo "    Check logs at: $RUNTIME_DIR/wsa.log"
+        else
+            "$SCRIPT_DIR/wsa-runner.sh" "$@"
+        fi
+        ;;
+
+    stop)
+        if ! is_running; then
+            echo "[*] WSA Linux is not running."
+            exit 0
+        fi
+        echo "[*] Gracefully stopping Android subsystem..."
+        ensure_adb_connected
+        $ADB_CMD shell reboot -p 2>/dev/null || true
+        sleep 2
+        if is_running; then
+            local pid
+            pid=$(cat "$PID_FILE")
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        fi
+        rm -f "$PID_FILE"
+        echo "[+] WSA Linux stopped successfully."
+        ;;
+
+    restart)
+        "$0" stop
+        sleep 2
+        "$0" start "${@:2}"
+        ;;
+
+    status)
+        if is_running; then
+            echo "[+] WSA Linux is RUNNING (PID: $(cat "$PID_FILE"))"
+            ensure_adb_connected
+            local boot_completed
+            boot_completed=$($ADB_CMD shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || echo "0")
+            if [[ "$boot_completed" == "1" ]]; then
+                echo "    Android State: BOOT COMPLETED (Active)"
+                echo "    Android Version: $($ADB_CMD shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')"
+                echo "    Security Patch: $($ADB_CMD shell getprop ro.build.version.security_patch 2>/dev/null | tr -d '\r')"
+                echo "    ADB Endpoint: 127.0.0.1:$ADB_PORT"
+            else
+                echo "    Android State: BOOTING..."
+            fi
+        else
+            echo "[-] WSA Linux is STOPPED"
+        fi
+        ;;
+
+    install)
+        if [[ -z "$2" || ! -f "$2" ]]; then
+            echo "[!] Usage: wsa-client install <path-to-apk>"
+            exit 1
+        fi
+        if ! is_running; then
+            echo "[*] WSA is not running. Starting in background first..."
+            "$0" start --daemon
+            wait_for_boot
+        fi
+        ensure_adb_connected
+        echo "[*] Installing APK: $2..."
+        $ADB_CMD install -r "$2"
+        echo "[*] Refreshing desktop shortcuts..."
+        "$SCRIPT_DIR/wsa-sync-apps"
+        echo "[+] App installed and registered in your Linux application menu!"
+        ;;
+
+    launch)
+        if [[ -z "$2" ]]; then
+            echo "[!] Usage: wsa-client launch <package-name>"
+            exit 1
+        fi
+        "$SCRIPT_DIR/wsa-app" "$2"
+        ;;
+
+    shell)
+        ensure_adb_connected
+        $ADB_CMD shell "${@:2}"
+        ;;
+
+    adb)
+        ensure_adb_connected
+        $ADB_CMD "${@:2}"
+        ;;
+
+    list-apps)
+        ensure_adb_connected
+        echo "=== Installed Third-Party Android Applications ==="
+        $ADB_CMD shell pm list packages -3 | sed 's/package://'
+        echo ""
+        echo "=== Key System & Google Applications ==="
+        $ADB_CMD shell pm list packages | grep -E 'vending|magisk|settings|chrome|gms' | sed 's/package://'
+        ;;
+
+    sync-apps)
+        "$SCRIPT_DIR/wsa-sync-apps"
+        ;;
+
+    play)
+        "$SCRIPT_DIR/wsa-app" "com.android.vending"
+        ;;
+
+    magisk)
+        "$SCRIPT_DIR/wsa-app" "com.topjohnwu.magisk"
+        ;;
+
+    settings)
+        "$SCRIPT_DIR/wsa-app" "com.android.settings"
+        ;;
+
+    help|--help|-h|*)
+        echo "=========================================================="
+        echo " WSA Linux Client (LSA) - Command Line Interface"
+        echo "=========================================================="
+        echo "Usage: wsa-client <command> [arguments]"
+        echo ""
+        echo "Commands:"
+        echo "  start [--daemon]      Start WSA Android subsystem (GUI or background)"
+        echo "  stop                  Stop WSA Android subsystem"
+        echo "  restart               Restart WSA subsystem"
+        echo "  status                Display runtime and Android boot status"
+        echo "  install <app.apk>     Install an APK and create Linux desktop shortcut"
+        echo "  launch <package>      Launch an Android app by package name"
+        echo "  list-apps             List installed Android applications"
+        echo "  sync-apps             Sync all Android apps to Fedora/Ubuntu desktop menus"
+        echo "  play                  Launch Google Play Store"
+        echo "  magisk                Launch Magisk Manager (Root)"
+        echo "  settings              Launch Android Settings"
+        echo "  shell [command]       Open ADB root shell inside Android"
+        echo "  adb [arguments]       Execute direct ADB commands against WSA"
+        echo "=========================================================="
+        ;;
+esac
