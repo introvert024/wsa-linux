@@ -32,7 +32,6 @@ jobs:
           mkdir -p build/deb/usr/lib/systemd/user
           mkdir -p build/deb/lib/udev/rules.d
 
-          # Copy binaries
           cp linux-wsa/bin/wsa-runner.sh build/deb/opt/wsa-linux/bin/wsa-runner
           cp linux-wsa/bin/wsa-client build/deb/opt/wsa-linux/bin/wsa-client
           cp linux-wsa/bin/wsa-app build/deb/opt/wsa-linux/bin/wsa-app
@@ -41,39 +40,35 @@ jobs:
           cp linux-wsa/bin/wsa-uninstaller build/deb/opt/wsa-linux/bin/wsa-uninstaller
           chmod 0755 build/deb/opt/wsa-linux/bin/*
 
-          # Symlinks
-          for bin in wsa-runner wsa-client wsa-app wsa-sync-apps wsa-settings wsa-uninstaller; do
-            ln -sf /opt/wsa-linux/bin/$bin build/deb/usr/bin/$bin
+          for b in wsa-runner wsa-client wsa-app wsa-sync-apps wsa-settings wsa-uninstaller; do
+            ln -sf /opt/wsa-linux/bin/$b build/deb/usr/bin/$b
           done
 
-          # Desktop & systemd
           cp linux-wsa/desktop/*.desktop build/deb/usr/share/applications/
           cp linux-wsa/systemd/wsa-linux.service build/deb/usr/lib/systemd/user/
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > build/deb/lib/udev/rules.d/65-wsa-kvm.rules
 
-          # Control file with single leading space for description lines
-          cat << 'EOF' > build/deb/DEBIAN/control
-Package: wsa-linux
-Version: 2210.40000.7.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Depends: qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils
-Maintainer: introvert024 <krishhnverma@gmail.com>
-Description: Windows Subsystem for Android (WSA) on Linux
- Port of Windows Subsystem for Android 2210.40000.7.0 for Ubuntu and Debian.
- Powered by KVM hardware acceleration, VirtIO 3D graphics, Google Play Store,
- and Magisk root.
-EOF
+          printf "%s\n" \
+            "Package: wsa-linux" \
+            "Version: 2210.40000.7.0" \
+            "Section: utils" \
+            "Priority: optional" \
+            "Architecture: amd64" \
+            "Depends: qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils" \
+            "Maintainer: introvert024 <krishhnverma@gmail.com>" \
+            "Description: Windows Subsystem for Android (WSA) on Linux" \
+            " Port of Windows Subsystem for Android 2210.40000.7.0 for Ubuntu and Debian." \
+            " Powered by KVM hardware acceleration, VirtIO 3D graphics, Google Play Store, and Magisk root." \
+            > build/deb/DEBIAN/control
 
-          cat << 'EOF' > build/deb/DEBIAN/postinst
-#!/bin/sh
-set -e
-udevadm control --reload-rules 2>/dev/null || true
-udevadm trigger --name-match=kvm 2>/dev/null || true
-update-desktop-database -q /usr/share/applications 2>/dev/null || true
-exit 0
-EOF
+          printf "%s\n" \
+            "#!/bin/sh" \
+            "set -e" \
+            "udevadm control --reload-rules 2>/dev/null || true" \
+            "udevadm trigger --name-match=kvm 2>/dev/null || true" \
+            "update-desktop-database -q /usr/share/applications 2>/dev/null || true" \
+            "exit 0" \
+            > build/deb/DEBIAN/postinst
           chmod 0755 build/deb/DEBIAN/postinst
 
           dpkg-deb --build build/deb wsa-linux_2210.40000.7.0_amd64.deb
