@@ -48,30 +48,29 @@ jobs:
           cp linux-wsa/systemd/wsa-linux.service build/deb/usr/lib/systemd/user/
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > build/deb/lib/udev/rules.d/65-wsa-kvm.rules
 
-          # Control file
+          # Control file with single leading space for description lines
           cat << 'EOF' > build/deb/DEBIAN/control
-          Package: wsa-linux
-          Version: 2210.40000.7.0
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Depends: qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils
-          Maintainer: introvert024 <krishhnverma@gmail.com>
-          Description: Windows Subsystem for Android (WSA) on Linux
-           Port of Windows Subsystem for Android 2210.40000.7.0 for Ubuntu and Debian.
-           Powered by KVM hardware acceleration, VirtIO 3D graphics, Google Play Store,
-           and Magisk root.
-          EOF
-          sed -i 's/^[ \t]*//' build/deb/DEBIAN/control
+Package: wsa-linux
+Version: 2210.40000.7.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils
+Maintainer: introvert024 <krishhnverma@gmail.com>
+Description: Windows Subsystem for Android (WSA) on Linux
+ Port of Windows Subsystem for Android 2210.40000.7.0 for Ubuntu and Debian.
+ Powered by KVM hardware acceleration, VirtIO 3D graphics, Google Play Store,
+ and Magisk root.
+EOF
 
           cat << 'EOF' > build/deb/DEBIAN/postinst
-          #!/bin/sh
-          set -e
-          udevadm control --reload-rules 2>/dev/null || true
-          udevadm trigger --name-match=kvm 2>/dev/null || true
-          update-desktop-database -q /usr/share/applications 2>/dev/null || true
-          exit 0
-          EOF
+#!/bin/sh
+set -e
+udevadm control --reload-rules 2>/dev/null || true
+udevadm trigger --name-match=kvm 2>/dev/null || true
+update-desktop-database -q /usr/share/applications 2>/dev/null || true
+exit 0
+EOF
           chmod 0755 build/deb/DEBIAN/postinst
 
           dpkg-deb --build build/deb wsa-linux_2210.40000.7.0_amd64.deb
