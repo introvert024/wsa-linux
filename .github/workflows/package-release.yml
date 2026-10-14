@@ -1,0 +1,94 @@
+name: Build and Publish Linux Packages (.deb & .rpm)
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published, created]
+
+jobs:
+  build-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Packaging Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm dpkg-dev debhelper tar gzip
+
+      - name: Build Debian/Ubuntu Package (.deb)
+        run: |
+          mkdir -p build/deb/DEBIAN
+          mkdir -p build/deb/opt/wsa-linux/bin
+          mkdir -p build/deb/usr/bin
+          mkdir -p build/deb/usr/share/applications
+          mkdir -p build/deb/usr/lib/systemd/user
+          mkdir -p build/deb/lib/udev/rules.d
+
+          # Copy binaries
+          cp linux-wsa/bin/wsa-runner.sh build/deb/opt/wsa-linux/bin/wsa-runner
+          cp linux-wsa/bin/wsa-client build/deb/opt/wsa-linux/bin/wsa-client
+          cp linux-wsa/bin/wsa-app build/deb/opt/wsa-linux/bin/wsa-app
+          cp linux-wsa/bin/wsa-sync-apps build/deb/opt/wsa-linux/bin/wsa-sync-apps
+          cp linux-wsa/bin/wsa-settings build/deb/opt/wsa-linux/bin/wsa-settings
+          cp linux-wsa/bin/wsa-uninstaller build/deb/opt/wsa-linux/bin/wsa-uninstaller
+          chmod 0755 build/deb/opt/wsa-linux/bin/*
+
+          # Symlinks
+          for bin in wsa-runner wsa-client wsa-app wsa-sync-apps wsa-settings wsa-uninstaller; do
+            ln -sf /opt/wsa-linux/bin/$bin build/deb/usr/bin/$bin
+          done
+
+          # Desktop & systemd
+          cp linux-wsa/desktop/*.desktop build/deb/usr/share/applications/
+          cp linux-wsa/systemd/wsa-linux.service build/deb/usr/lib/systemd/user/
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' > build/deb/lib/udev/rules.d/65-wsa-kvm.rules
+
+          # Control file
+          cat << 'EOF' > build/deb/DEBIAN/control
+          Package: wsa-linux
+          Version: 2210.40000.7.0
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: qemu-system-x86, qemu-utils, adb, e2fsprogs, python3, python3-tk, pulseaudio-utils, libnotify-bin, xdg-utils
+          Maintainer: introvert024 <krishhnverma@gmail.com>
+          Description: Windows Subsystem for Android (WSA) on Linux
+           Port of Windows Subsystem for Android 2210.40000.7.0 for Ubuntu and Debian.
+           Powered by KVM hardware acceleration, VirtIO 3D graphics, Google Play Store,
+           and Magisk root.
+          EOF
+          sed -i 's/^[ \t]*//' build/deb/DEBIAN/control
+
+          cat << 'EOF' > build/deb/DEBIAN/postinst
+          #!/bin/sh
+          set -e
+          udevadm control --reload-rules 2>/dev/null || true
+          udevadm trigger --name-match=kvm 2>/dev/null || true
+          update-desktop-database -q /usr/share/applications 2>/dev/null || true
+          exit 0
+          EOF
+          chmod 0755 build/deb/DEBIAN/postinst
+
+          dpkg-deb --build build/deb wsa-linux_2210.40000.7.0_amd64.deb
+
+      - name: Build Fedora RPM Package (.rpm)
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p wsa-linux-2210.40000.7.0
+          cp -r linux-wsa/* wsa-linux-2210.40000.7.0/
+          tar -czvf ~/rpmbuild/SOURCES/wsa-linux-2210.40000.7.0.tar.gz wsa-linux-2210.40000.7.0/
+          cp linux-wsa/packaging/fedora/wsa-linux.spec ~/rpmbuild/SPECS/
+          rpmbuild -bb ~/rpmbuild/SPECS/wsa-linux.spec
+          find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} ./ \;
+
+      - name: Upload Packages to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v2210.40000.7.0"
+          gh release upload "$TAG_NAME" *.deb *.rpm --clobber || true
