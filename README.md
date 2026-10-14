@@ -56,26 +56,40 @@ d:/wsa for linux/
 
 ---
 
+## 📦 Direct Downloads & Prebuilt Packages
+
+Prebuilt releases and installers are published on GitHub:
+👉 **[GitHub Releases v2210.40000.7.0](https://github.com/introvert024/wsa-linux/releases/tag/v2210.40000.7.0)**
+
+| Package | Target OS | Direct Download Link | Installation Command |
+| :--- | :--- | :--- | :--- |
+| **Debian / Ubuntu Package** | Ubuntu 20.04 - 24.10, Debian | [Download `.deb`](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux_2210.40000.7.0_amd64.deb) | `sudo apt-get install -y ./wsa-linux_2210.40000.7.0_amd64.deb` |
+| **Fedora Package Bundle** | Fedora 38, 39, 40, 41, Rawhide | [Download Fedora Bundle](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-fedora.tar.gz) | `tar -xzf wsa-linux-*-fedora.tar.gz && sudo ./installer/install.sh` |
+| **Universal Installer** | All Linux Distributions | [Download Universal Archive](https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-universal.tar.gz) | `tar -xzf wsa-linux-*-universal.tar.gz && sudo ./installer/install.sh` |
+
+---
+
 ## 🚀 Quick Start Guide
 
-### 1. Converting `WSA_2210.40000.7.0_x86_64_Windows10`
-To convert the Windows 10 WSA 2210.40000.7.0 build archive or directory:
+### 1. Direct Install on Fedora
+```bash
+wget https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux-2210.40000.7.0-fedora.tar.gz
+tar -xzf wsa-linux-2210.40000.7.0-fedora.tar.gz
+sudo ./installer/install.sh
+```
+*(Or build native RPM package: `rpmbuild -ba packaging/fedora/wsa-linux.spec`)*
+
+### 2. Direct Install on Ubuntu
+```bash
+wget https://github.com/introvert024/wsa-linux/releases/download/v2210.40000.7.0/wsa-linux_2210.40000.7.0_amd64.deb
+sudo apt-get update && sudo apt-get install -y ./wsa-linux_2210.40000.7.0_amd64.deb
+```
+
+### 3. Converting `WSA_2210.40000.7.0_x86_64_Windows10` (From Source Archive)
+To convert a raw Windows 10 WSA 2210.40000.7.0 build archive or directory:
 ```bash
 cd linux-wsa/converter
 ./convert_wsa_build.sh /path/to/WSA_2210.40000.7.0_x86_64_Windows10.7z -o ./output --distro fedora
-```
-
-### 2. Installing on Fedora
-```bash
-cd output/wsa-linux-2210.40000.7.0-x86_64
-sudo ./install.sh
-```
-*(Or build native RPM with `cd packaging/fedora && rpmbuild -ba wsa-linux.spec`)*
-
-### 3. Installing on Ubuntu
-```bash
-cd output/wsa-linux-2210.40000.7.0-x86_64
-sudo ./install.sh
 ```
 
 ---
