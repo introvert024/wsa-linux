@@ -1,3 +1,6 @@
+%{!?_userunitdir: %global _userunitdir /usr/lib/systemd/user}
+%{!?_udevrulesdir: %global _udevrulesdir /usr/lib/udev/rules.d}
+
 Name:           wsa-linux
 Version:        2210.40000.7.0
 Release:        1%{?dist}

@@ -80,7 +80,7 @@ jobs:
           cp -r linux-wsa/* wsa-linux-2210.40000.7.0/
           tar -czvf ~/rpmbuild/SOURCES/wsa-linux-2210.40000.7.0.tar.gz wsa-linux-2210.40000.7.0/
           cp linux-wsa/packaging/fedora/wsa-linux.spec ~/rpmbuild/SPECS/
-          rpmbuild -bb ~/rpmbuild/SPECS/wsa-linux.spec
+          rpmbuild -bb --define "_userunitdir /usr/lib/systemd/user" --define "_udevrulesdir /usr/lib/udev/rules.d" ~/rpmbuild/SPECS/wsa-linux.spec
           find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} ./ \;
 
       - name: Upload Packages to GitHub Release
